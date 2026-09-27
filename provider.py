@@ -1,72 +1,33 @@
-from typing import Optional, List, Dict, Any
-from datetime import datetime
-from pydantic import BaseModel, Field
-from enum import Enum
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, Integer, Float, DateTime, Text, JSON, Boolean
+from app.core.database import Base
 
 
-class SourceType(str, Enum):
-    PUBLIC_API = "PUBLIC_API"
-    AUTHENTICATED_API = "AUTHENTICATED_API"
-    OFFICIAL_PORTAL = "OFFICIAL_PORTAL"
-    OFFICIAL_DATA_SERVICE = "OFFICIAL_DATA_SERVICE"
-    OFFICIAL_DOWNLOAD = "OFFICIAL_DOWNLOAD"
-    MANUAL_VERIFICATION = "MANUAL_VERIFICATION"
-    UNAVAILABLE = "UNAVAILABLE"
-    UNKNOWN = "UNKNOWN"
+class ProviderHealth(Base):
+    __tablename__ = "provider_health"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    provider_id = Column(String(100), unique=True, nullable=False, index=True)
+    state_code = Column(String(10), nullable=False, index=True)
+    status = Column(String(50), default="HEALTHY")  # HEALTHY, DEGRADED, RATE_LIMITED, UNAVAILABLE, DISABLED
+    circuit_state = Column(String(50), default="CLOSED")  # CLOSED, OPEN, HALF_OPEN
+    consecutive_failures = Column(Integer, default=0)
+    last_latency_ms = Column(Float, default=0.0)
+    last_checked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    error_summary = Column(Text, nullable=True)
 
 
-class AuthType(str, Enum):
-    NONE = "NONE"
-    API_KEY = "API_KEY"
-    OAUTH2 = "OAUTH2"
-    CAPTCHA_SESSION = "CAPTCHA_SESSION"
-    IP_WHITELIST = "IP_WHITELIST"
-    CERTIFICATE = "CERTIFICATE"
+class ApiRequestLog(Base):
+    __tablename__ = "api_requests"
 
-
-class CredentialStatus(str, Enum):
-    CREDENTIAL_CONFIGURED = "CREDENTIAL_CONFIGURED"
-    CREDENTIAL_NOT_REQUIRED = "CREDENTIAL_NOT_REQUIRED"
-    CREDENTIAL_MISSING = "CREDENTIAL_MISSING"
-
-
-class ProviderConfigSchema(BaseModel):
-    provider_id: str
-    provider_name: str
-    state: str  # State Code (e.g. MH, KA, GJ)
-    source_type: SourceType
-    official_domain: str
-    supported_documents: List[str]  # e.g., ["7_12", "8A"]
-    supported_operations: List[str]  # e.g., ["ROR_LOOKUP", "MUTATION_CHECK"]
-    supported_identifiers: List[str]  # e.g., ["SURVEY_NUMBER", "GAT_NUMBER"]
-    authentication_type: AuthType = AuthType.NONE
-    requires_credentials: bool = False
-    endpoint: Optional[str] = None
-    timeout_seconds: float = 10.0
-    retry_policy: Dict[str, Any] = Field(default_factory=lambda: {"max_retries": 3, "backoff_factor": 1.5})
-    rate_limit_per_minute: int = 60
-    cache_ttl_seconds: int = 3600
-    enabled: bool = True
-    verification_status: str = "OFFICIAL_VERIFIED"
-
-
-class ProviderCredentialConfig(BaseModel):
-    provider_id: str
-    credential_type: str  # API_KEY, CLIENT_SECRET, CERTIFICATE, NONE
-    environment_variable: Optional[str] = None
-    required: bool = False
-    configured: bool = False
-    status: CredentialStatus = CredentialStatus.CREDENTIAL_NOT_REQUIRED
-
-
-class ProviderHealthResponse(BaseModel):
-    provider_id: str
-    state_code: str
-    status: str  # HEALTHY, DEGRADED, RATE_LIMITED, UNAVAILABLE, DISABLED
-    circuit_state: str  # CLOSED, OPEN, HALF_OPEN
-    source_type: SourceType
-    official_domain: str
-    requires_credentials: bool
-    credential_status: CredentialStatus
-    last_latency_ms: float
-    last_checked_at: datetime
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    request_id = Column(String(100), nullable=False, index=True)
+    case_id = Column(String(100), nullable=True, index=True)
+    provider_id = Column(String(100), nullable=False, index=True)
+    operation = Column(String(100), nullable=False)
+    latency_ms = Column(Float, nullable=False)
+    status_code = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False)  # SUCCESS, FAILED, TIMEOUT, RATE_LIMITED
+    error_code = Column(String(50), nullable=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
