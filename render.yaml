@@ -1,0 +1,43 @@
+# Render Blueprint configuration for BhoomiVerify
+services:
+  # 1. FastAPI Web Service
+  - type: web
+    name: bhoomi-verify-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: standard
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENABLE_DEMO_MODE
+        value: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bhoomi-verify-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bhoomi-verify-redis
+          property: connectionString
+
+  # 2. Redis Cache
+  - type: redis
+    name: bhoomi-verify-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+# 3. PostgreSQL with PostGIS extension
+databases:
+  - name: bhoomi-verify-db
+    databaseName: bhoomidb
+    user: bhoomi
+    plan: standard
+    postgresMajorVersion: 16

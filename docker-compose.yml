@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  bhoomi-db:
+    image: postgis/postgis:16-3.4
+    container_name: bhoomi_verify_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bhoomi
+      POSTGRES_PASSWORD: bhoomi_secure_password
+      POSTGRES_DB: bhoomidb
+    ports:
+      - "5432:5432"
+    volumes:
+      - bhoomi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bhoomi -d bhoomidb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bhoomi-redis:
+    image: redis:7-alpine
+    container_name: bhoomi_verify_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - bhoomi_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bhoomi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bhoomi_verify_api
+    restart: unless-stopped
+    depends_on:
+      bhoomi-db:
+        condition: service_healthy
+      bhoomi-redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - POSTGRES_SERVER=bhoomi-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=bhoomi
+      - POSTGRES_PASSWORD=bhoomi_secure_password
+      - POSTGRES_DB=bhoomidb
+      - REDIS_URL=redis://bhoomi-redis:6379/0
+      - SECRET_KEY=bhoomi-verify-prod-secret-change-in-env
+      - ENABLE_DEMO_MODE=True
+    ports:
+      - "8000:8000"
+    volumes:
+      - bhoomi_uploads:/app/uploads
+
+volumes:
+  bhoomi_pgdata:
+  bhoomi_redisdata:
+  bhoomi_uploads:
